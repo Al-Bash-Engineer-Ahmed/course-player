@@ -4,6 +4,7 @@ export const useCourseProgress = (videos) => {
   const [courseProgress, setCourseProgress] = useState(0);
   const [completedVideos, setCompletedVideos] = useState([]);
   const [nextUnlockedVideo, setNextUnlockedVideo] = useState(null);
+  const [unlockedVideos, setUnlockedVideos] = useState(new Set());
 
   useEffect(() => {
     // Load completed videos from localStorage
@@ -43,10 +44,43 @@ export const useCourseProgress = (videos) => {
     return previousVideo && localStorage.getItem(`video-${previousVideo}`) >= 0.8;
   };
 
+  // Function to unlock the next video when current one is completed
+  const unlockNextVideo = (videoId) => {
+    if (!videos || videos.length === 0) return;
+    
+    // Find the index of the current video
+    const currentIndex = videos.findIndex(video => video.id === videoId);
+    if (currentIndex === -1) return;
+    
+    // Mark current video as completed
+    const updatedCompletedVideos = [...completedVideos];
+    if (!updatedCompletedVideos.find(v => v.id === videoId)) {
+      updatedCompletedVideos.push(videos[currentIndex]);
+      setCompletedVideos(updatedCompletedVideos);
+    }
+    
+    // Unlock the next video if it exists
+    if (currentIndex < videos.length - 1) {
+      const nextVideo = videos[currentIndex + 1];
+      const updatedUnlocked = new Set(unlockedVideos);
+      updatedUnlocked.add(nextVideo.url);
+      setUnlockedVideos(updatedUnlocked);
+      setNextUnlockedVideo(nextVideo);
+      
+      // Save to localStorage that this video is unlocked
+      localStorage.setItem(`video-unlocked-${nextVideo.id}`, 'true');
+    }
+    
+    // Update course progress
+    const newProgress = ((updatedCompletedVideos.length) / videos.length) * 100;
+    setCourseProgress(newProgress);
+  };
+
   return {
     courseProgress,
     completedVideos,
     nextUnlockedVideo,
-    isVideoUnlocked
+    isVideoUnlocked,
+    unlockNextVideo
   };
 };

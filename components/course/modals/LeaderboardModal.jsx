@@ -5,11 +5,11 @@ export default function LeaderboardModal({ isOpen, onClose }) {
 
   // Sample leaderboard data - in a real app, this would come from an API
   const leaderboardData = [
-    { rank: 1, name: "أحمد محمد", points: 1250, avatar: "/images/avatar1.jpg" },
-    { rank: 2, name: "سارة أحمد", points: 1100, avatar: "/images/avatar2.jpg" },
-    { rank: 3, name: "محمد علي", points: 950, avatar: "/images/avatar3.jpg" },
-    { rank: 4, name: "فاطمة حسن", points: 900, avatar: "/images/avatar4.jpg" },
-    { rank: 5, name: "عمر خالد", points: 850, avatar: "/images/avatar5.jpg" },
+    { rank: 1, name: "أحمد محمد", points: 1250, avatar: "/images/avatar1.png" },
+    { rank: 2, name: "حاتم أحمد", points: 1100, avatar: "/images/avatar2.png" },
+    { rank: 3, name: "محمد علي", points: 950, avatar: "/images/avatar3.png" },
+    { rank: 4, name: "شريف حسن", points: 900, avatar: "/images/avatar4.png" },
+    { rank: 5, name: "عمر خالد", points: 850, avatar: "/images/avatar5.png" },
   ];
 
   return (

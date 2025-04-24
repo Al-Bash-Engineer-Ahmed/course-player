@@ -88,7 +88,7 @@ export default function Quiz({ questions, onComplete }) {
             Quiz Completed!
           </h3>
           <p className="text-gray-600">
-            You have completed the quiz. Your results have been recorded.
+            You've completed the quiz. Your results have been recorded.
           </p>
         </div>
       )}
