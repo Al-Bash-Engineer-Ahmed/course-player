@@ -51,7 +51,6 @@ export default function CourseDetails({ params }) {
   const [watchedVideos, setWatchedVideos] = useState({});
   const [unlockedContent, setUnlockedContent] = useState(new Set());
   const [selectedVideo, setSelectedVideo] = useState(null);
-  const [isFirstVideoLoaded, setIsFirstVideoLoaded] = useState(false);
   
   // Load watched status from localStorage on component mount
   useEffect(() => {
@@ -83,20 +82,6 @@ export default function CourseDetails({ params }) {
                 const nextLesson = topic.lessons[lessonIndex + 1];
                 if (nextLesson.videoId) {
                   initialUnlocked.add(nextLesson.videoId);
-                }
-              }
-              
-              // If this is the last lesson in the current topic, unlock the first lesson of the next topic
-              if (lessonIndex === topic.lessons.length - 1) {
-                const topicIndex = course.topics.findIndex(t => t.weekTitle === topic.weekTitle);
-                if (topicIndex >= 0 && topicIndex < course.topics.length - 1) {
-                  const nextTopic = course.topics[topicIndex + 1];
-                  if (nextTopic.lessons && nextTopic.lessons.length > 0) {
-                    const firstLessonOfNextTopic = nextTopic.lessons[0];
-                    if (firstLessonOfNextTopic.videoId) {
-                      initialUnlocked.add(firstLessonOfNextTopic.videoId);
-                    }
-                  }
                 }
               }
             }
@@ -163,65 +148,43 @@ export default function CourseDetails({ params }) {
           {/* Left Column - Video and Materials */}
           <div className="w-full lg:w-2/3 space-y-8">
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <CourseVideo 
-                videoUrl={selectedVideo ? selectedVideo.videoUrl : courseWithComments.videoUrl} 
-                onProgress={(progressData) => {
-                  console.log('Video watched:', typeof progressData === 'object' ? progressData.progress : progressData);
-                  
-                  // Extract videoId and progress from the data
-                  const videoId = progressData.videoId || (selectedVideo ? selectedVideo.videoId : `video-${courseWithComments.id}-main`);
-                  const progressValue = typeof progressData === 'object' ? progressData.progress : progressData;
-                  
-                  // Update localStorage with consistent key format
-                  localStorage.setItem(`video-${videoId}`, progressValue.toString());
-                  
-                  // Update watched videos state
-                  setWatchedVideos(prev => ({
-                    ...prev,
-                    [videoId]: progressValue
-                  }));
-                  
-                  // If video is watched (80% or more), unlock next content
-                  if (progressValue >= 80) {
-                    setUnlockedContent(prev => {
-                      const updated = new Set(prev);
-                      
-                      // Find the video in topics and unlock next lesson
-                      courseWithComments.topics.forEach(topic => {
-                        const lessonIndex = topic.lessons.findIndex(lesson => lesson.videoId === videoId);
-                        if (lessonIndex >= 0 && lessonIndex < topic.lessons.length - 1) {
-                          const nextLesson = topic.lessons[lessonIndex + 1];
-                          if (nextLesson.videoId) {
-                            updated.add(nextLesson.videoId);
-                          }
-                        }
-                      });
-                      
-                      return updated;
-                    });
-                  }
-                }}
-              />
-              <div className="px-6 py-4">
-                <CourseActions 
-                  onScrollToSection={(section) => {
-                    const element = document.getElementById(section);
-                    if (element) {
-                      element.scrollIntoView({ behavior: 'smooth' });
+              <CourseVideo videoUrl={selectedVideo ? selectedVideo.videoUrl : courseWithComments.videoUrl} onProgress={(watched) => {
+                console.log('Video watched:', watched);
+                // Update the course progress in state and localStorage
+                const videoId = selectedVideo ? selectedVideo.videoId : `video-${courseWithComments.id}-main`;
+                localStorage.setItem(`video-${videoId}`, watched.toString());
+                
+                // Update watched videos state
+                setWatchedVideos(prev => ({
+                  ...prev,
+                  [videoId]: typeof watched === 'object' ? watched.progress : watched
+                }));
+                
+                // If video is watched (80% or more), unlock next content
+                const progressValue = typeof watched === 'object' ? watched.progress : watched;
+                if (progressValue >= 80) {
+                  setUnlockedContent(prev => {
+                    const updated = new Set(prev);
+                    // Unlock first lesson of first topic if not already unlocked
+                    if (courseWithComments.topics && courseWithComments.topics.length > 0 && 
+                        courseWithComments.topics[0].lessons && courseWithComments.topics[0].lessons.length > 0) {
+                      const firstLesson = courseWithComments.topics[0].lessons[0];
+                      if (firstLesson.videoId) {
+                        updated.add(firstLesson.videoId);
+                      }
                     }
-                  }}
-                  curriculumContent={<CourseMaterials 
-                    duration={courseWithComments.duration}
-                    topicsCount={courseWithComments.topicsCount}
-                    lessonsCount={courseWithComments.lessonsCount}
-                    price={courseWithComments.price}
-                    enrolledStudents={courseWithComments.enrolledStudents}
-                    instructor={courseWithComments.instructor}
-                    language={courseWithComments.language}
-                    certificate={courseWithComments.certificate}
-                  />}
-                  commentsContent={<CourseComments comments={courseWithComments.comments} />}
-                />
+                    return updated;
+                  });
+                }
+              }} />
+              
+              <div className="px-6 py-4">
+                <CourseActions onScrollToSection={(section) => {
+                  const element = document.getElementById(section);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }} />
               </div>
             </div>
             
@@ -254,68 +217,37 @@ export default function CourseDetails({ params }) {
               unlockedContent={unlockedContent}
               onSelectVideo={(video) => {
                 setSelectedVideo(video);
-                setIsFirstVideoLoaded(true);
               }}
-              onVideoComplete={(videoId, progress, newUnlockedContent) => {
+              onVideoComplete={(videoId, progress) => {
                 console.log('Video completed:', videoId, 'Progress:', progress);
                 
-                // Handle different types of events
-                if (videoId === "overall-progress") {
-                  // Update the course progress
-                  setCourse(prev => ({
-                    ...prev,
-                    progress: progress
-                  }));
-                  return;
-                }
+                // Update watched videos state
+                setWatchedVideos(prev => ({
+                  ...prev,
+                  [videoId]: progress
+                }));
                 
-                if (videoId === "content-unlocked") {
-                  // If we received new unlocked content directly, use it
-                  if (newUnlockedContent) {
-                    setUnlockedContent(newUnlockedContent);
-                  }
-                  return;
-                }
+                // Save to localStorage
+                localStorage.setItem(videoId, progress.toString());
                 
-                if (videoId === "progress-update") {
-                  // Just trigger a re-render
-                  return;
-                }
-                
-                // Handle regular video progress updates
-                if (videoId) {
-                  // Update watched videos state
-                  setWatchedVideos(prev => ({
-                    ...prev,
-                    [videoId]: progress
-                  }));
-                  
-                  // Save to localStorage with consistent key format
-                  localStorage.setItem(`video-${videoId}`, progress.toString());
-                  
-                  // If video is watched (80% or more), unlock next content
-                  if (progress >= 80) {
-                    setUnlockedContent(prev => {
-                      const updated = new Set(prev);
-                      
-                      // Find the video in topics and unlock next lesson
-                      courseWithComments.topics.forEach(topic => {
-                        const lessonIndex = topic.lessons.findIndex(lesson => lesson.videoId === videoId);
-                        if (lessonIndex >= 0 && lessonIndex < topic.lessons.length - 1) {
-                          const nextLesson = topic.lessons[lessonIndex + 1];
-                          if (nextLesson.videoId) {
-                            updated.add(nextLesson.videoId);
-                            console.log(`Unlocked next lesson: ${nextLesson.title} (ID: ${nextLesson.videoId})`);
-                          }
+                // If video is watched (80% or more), unlock next content
+                if (progress >= 0.8) {
+                  setUnlockedContent(prev => {
+                    const updated = new Set(prev);
+                    
+                    // Find the video in topics and unlock next lesson
+                    courseWithComments.topics.forEach(topic => {
+                      const lessonIndex = topic.lessons.findIndex(lesson => lesson.videoId === videoId);
+                      if (lessonIndex >= 0 && lessonIndex < topic.lessons.length - 1) {
+                        const nextLesson = topic.lessons[lessonIndex + 1];
+                        if (nextLesson.videoId) {
+                          updated.add(nextLesson.videoId);
                         }
-                      });
-                      
-                      // Save unlocked content to localStorage for persistence
-                      localStorage.setItem('unlocked-content', JSON.stringify(Array.from(updated)));
-                      
-                      return updated;
+                      }
                     });
-                  }
+                    
+                    return updated;
+                  });
                 }
               }}
             />

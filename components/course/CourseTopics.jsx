@@ -37,153 +37,17 @@ export default function CourseTopics({ topics, progress, watchedVideos, unlocked
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState(topics.map((_, i) => i === 0));
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   
   // Auto-load first video when component mounts
   useEffect(() => {
-    if (topics?.length > 0 && topics[0].lessons?.length > 0) {
+    if (topics && topics.length > 0 && topics[0].lessons && topics[0].lessons.length > 0) {
       const firstLesson = topics[0].lessons.find(lesson => lesson.type === 'video');
       if (firstLesson && onSelectVideo) {
-        const timer = setTimeout(() => onSelectVideo(firstLesson), 100);
-        return () => clearTimeout(timer);
+        onSelectVideo(firstLesson);
       }
     }
   }, [topics, onSelectVideo]);
-  
-  // Handle video completion and navigation
-  useEffect(() => {
-    const handleVideoCompleted = (event) => {
-      const { videoId } = event.detail;
-      if (!videoId) return;
-      
-      // Find the completed lesson and its position
-      let foundLesson = null;
-      let foundWeekIndex = -1;
-      let nextLesson = null;
-      
-      // Mark as completed and find next lesson
-      topics.forEach((week, weekIndex) => {
-        week.lessons.forEach((lesson, lessonIndex) => {
-          if (lesson.videoId === videoId) {
-            foundLesson = lesson;
-            foundWeekIndex = weekIndex;
-            
-            // Mark as completed in localStorage
-            if (lesson.videoUrl) {
-              localStorage.setItem(`video-completed-${lesson.videoUrl}`, 'true');
-              localStorage.setItem(`video-${lesson.videoId}`, '100');
-            }
-            
-            // Find next lesson in this week
-            if (lessonIndex < week.lessons.length - 1) {
-              for (let j = lessonIndex + 1; j < week.lessons.length; j++) {
-                if (week.lessons[j].type === 'video') {
-                  nextLesson = week.lessons[j];
-                  break;
-                }
-              }
-            }
-          }
-        });
-        
-        // If we found the current lesson but no next lesson in this week,
-        // look in subsequent weeks
-        if (foundLesson && !nextLesson && weekIndex === foundWeekIndex) {
-          for (let nextWeekIndex = weekIndex + 1; nextWeekIndex < topics.length; nextWeekIndex++) {
-            const nextWeek = topics[nextWeekIndex];
-            for (let j = 0; j < nextWeek.lessons.length; j++) {
-              if (nextWeek.lessons[j].type === 'video') {
-                nextLesson = nextWeek.lessons[j];
-                break;
-              }
-            }
-            if (nextLesson) break;
-          }
-        }
-      });
-      
-      // Update progress
-      if (onVideoComplete) {
-        onVideoComplete("progress-update", 0);
-      }
-      
-      // Navigate to next lesson if found
-      if (nextLesson && onSelectVideo) {
-        // Unlock the next lesson
-        if (nextLesson.videoId) {
-          const newUnlocked = new Set(unlockedContent ? Array.from(unlockedContent) : []);
-          newUnlocked.add(nextLesson.videoId);
-          localStorage.setItem('unlocked-content', JSON.stringify(Array.from(newUnlocked)));
-          
-          if (onVideoComplete) {
-            onVideoComplete("content-unlocked", 0, newUnlocked);
-          }
-        }
-        
-        // Expand the week containing the next lesson if needed
-        if (foundWeekIndex >= 0) {
-          const newExpandedWeeks = [...expandedWeeks];
-          newExpandedWeeks[foundWeekIndex] = true;
-          setExpandedWeeks(newExpandedWeeks);
-        }
-        
-        // Navigate to the next lesson
-        setTimeout(() => onSelectVideo(nextLesson), 300);
-      } else if (onVideoComplete) {
-        // Course completed
-        onVideoComplete("overall-progress", 100);
-      }
-    };
-    
-    // Listen for video completion events
-    window.addEventListener('videoCompleted', handleVideoCompleted);
-    window.addEventListener('lessonCompleted', handleVideoCompleted);
-    
-    return () => {
-      window.removeEventListener('videoCompleted', handleVideoCompleted);
-      window.removeEventListener('lessonCompleted', handleVideoCompleted);
-    };
-  }, [topics, expandedWeeks, onVideoComplete, onSelectVideo, unlockedContent]);
-  
-  // Calculate overall course progress
-  useEffect(() => {
-    if (!topics) return;
-    
-    let totalVideos = 0;
-    let completedVideos = 0;
-    
-    topics.forEach(week => {
-      week.lessons.forEach(lesson => {
-        if (lesson.type === 'video' && lesson.videoId) {
-          totalVideos++;
-          
-          // Check if video is completed through any method
-          const isCompletedInStorage = localStorage.getItem(`video-completed-${lesson.videoUrl}`) === 'true';
-          const isCompletedByProgress = localStorage.getItem(`video-${lesson.videoId}`) >= 80;
-          const isWatchedInState = watchedVideos && watchedVideos[lesson.videoId] >= 80;
-          
-          if (isCompletedInStorage || isCompletedByProgress || isWatchedInState) {
-            completedVideos++;
-            
-            // Ensure consistency across storage mechanisms
-            if (!isCompletedInStorage && lesson.videoUrl) {
-              localStorage.setItem(`video-completed-${lesson.videoUrl}`, 'true');
-            }
-            
-            if (!isCompletedByProgress && lesson.videoId) {
-              localStorage.setItem(`video-${lesson.videoId}`, '100');
-            }
-          }
-        }
-      });
-    });
-    
-    // Update overall progress
-    if (totalVideos > 0 && onVideoComplete) {
-      const newProgress = Math.round((completedVideos / totalVideos) * 100);
-      onVideoComplete("overall-progress", newProgress);
-      localStorage.setItem('course-overall-progress', newProgress.toString());
-    }
-  }, [topics, watchedVideos, onVideoComplete]);
   
   const toggleWeek = (index) => {
     const newExpandedWeeks = [...expandedWeeks];
@@ -193,11 +57,33 @@ export default function CourseTopics({ topics, progress, watchedVideos, unlocked
   
   const handleQuizComplete = (score) => {
     setShowQuizModal(false);
-    // Update progress if needed
-    if (onVideoComplete) {
-      onVideoComplete("progress-update", 0);
-    }
+    // Here you can handle the quiz completion, e.g., update progress
   };
+
+  // Calculate overall course progress based on watched videos
+  useEffect(() => {
+    if (!topics || !watchedVideos) return;
+    
+    let totalVideos = 0;
+    let completedVideos = 0;
+    
+    topics.forEach(week => {
+      week.lessons.forEach(lesson => {
+        if (lesson.type === 'video' && lesson.videoId) {
+          totalVideos++;
+          if (watchedVideos[lesson.videoId] >= 0.8) {
+            completedVideos++;
+          }
+        }
+      });
+    });
+    
+    // Update overall progress
+    if (totalVideos > 0) {
+      const newProgress = (completedVideos / totalVideos) * 100;
+      onVideoComplete && onVideoComplete(null, newProgress);
+    }
+  }, [topics, watchedVideos, onVideoComplete]);
 
   return (
     <div>
@@ -225,7 +111,7 @@ export default function CourseTopics({ topics, progress, watchedVideos, unlocked
       {/* Progress bar */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <div className="flex justify-center mb-1">
-          <span className="text-gray-600">Course Progress</span>
+          <span className="text-gray-600">You</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2.5">
           <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
@@ -261,67 +147,84 @@ export default function CourseTopics({ topics, progress, watchedVideos, unlocked
             
             {expandedWeeks[weekIndex] && (
               <div className="border-t border-gray-100">
-                {week.lessons.map((lesson, lessonIndex) => {
-                  const isCompleted = watchedVideos && watchedVideos[lesson.videoId] >= 80;
-                  const isUnlocked = !lesson.videoId || unlockedContent?.has(lesson.videoId) || lessonIndex === 0;
-                  
-                  return (
-                    <div 
-                      key={lessonIndex} 
-                      className={`p-4 border-b border-gray-100 last:border-b-0 flex justify-between items-center ${isUnlocked ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed'} transition-colors`}
-                      onClick={() => {
-                        if ((lesson.type === 'video' || lesson.type === 'pdf') && isUnlocked) {
-                          // For PDF files, ensure we have the correct URL format
-                          if (lesson.type === 'pdf' && lesson.pdfUrl) {
-                            // Create a modified lesson object with videoUrl set to pdfUrl for the CourseVideo component
-                            const pdfLesson = {
-                              ...lesson,
-                              videoUrl: lesson.pdfUrl,
-                              type: 'pdf'
-                            };
-                            onSelectVideo && onSelectVideo(pdfLesson);
-                          } else {
-                            onSelectVideo && onSelectVideo(lesson);
-                          }
-                        } else if (lesson.type === 'quiz') {
-                          setSelectedQuiz(lesson.quiz);
-                          setShowQuizModal(true);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <ContentTypeIcon type={lesson.type} />
-                        <div className="flex flex-col">
-                          <span className={!isUnlocked ? 'text-gray-400' : ''}>{lesson.title}</span>
-                          {lesson.description && (
-                            <span className="text-xs text-gray-500 mt-1">{lesson.description}</span>
-                          )}
-                        </div>
-                        {lesson.type === 'video' && (
-                          <div className="flex items-center space-x-2">
-                            {isCompleted ? (
-                              <span className="text-xs font-medium text-green-500 bg-green-50 px-2 py-0.5 rounded-full flex items-center space-x-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span>Watched</span>
-                              </span>
-                            ) : watchedVideos && watchedVideos[lesson.videoId] > 0 && (
-                              <span className="text-xs font-medium text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
-                                {Math.round(watchedVideos[lesson.videoId])}%
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {!isUnlocked && lesson.type === 'video' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                          </svg>
+                {week.lessons.map((lesson, lessonIndex) => (
+                  <div 
+                    key={lessonIndex} 
+                    className="p-4 border-b border-gray-100 last:border-b-0 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      if (lesson.type === 'video' && (unlockedContent.has(lesson.videoId) || lessonIndex === 0)) {
+                        // Select this video to play
+                        onSelectVideo && onSelectVideo(lesson);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <ContentTypeIcon type={lesson.type} />
+                      <div className="flex flex-col">
+                        <span className={!unlockedContent || !unlockedContent.has(lesson.videoId) ? 'text-gray-400' : ''}>{lesson.title}</span>
+                        {lesson.description && (
+                          <span className="text-xs text-gray-500 mt-1">{lesson.description}</span>
                         )}
                       </div>
+                      {lesson.type === 'video' && (
+                        <div className="flex items-center space-x-2">
+                          {watchedVideos && watchedVideos[lesson.videoId] >= 80 ? (
+                            <span className="text-xs font-medium text-green-500 bg-green-50 px-2 py-0.5 rounded-full flex items-center space-x-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                              <span>Watched</span>
+                            </span>
+                          ) : watchedVideos && watchedVideos[lesson.videoId] > 0 && (
+                            <span className="text-xs font-medium text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
+                              {Math.round(watchedVideos[lesson.videoId])}%
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {(!unlockedContent || !unlockedContent.has(lesson.videoId)) && lesson.type === 'video' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
                     </div>
-                  );
-                })}
+                    <div className="flex items-center space-x-2">
+                      {lesson.questions !== undefined && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedQuiz(lesson.quiz);
+                            setShowQuizModal(true);
+                          }}
+                          className="text-xs text-blue-500 px-2 py-1 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors"
+                        >
+                          {lesson.questions} Questions
+                        </button>
+                      )}
+                      {lesson.duration !== undefined && (
+                        <span className="text-xs text-red-500 px-2 py-1 rounded-full bg-red-50">
+                          {lesson.duration} min
+                        </span>
+                      )}
+                      {lesson.fileSize && lesson.type === 'pdf' && (
+                        <span className="text-xs text-purple-500 px-2 py-1 rounded-full bg-purple-50">
+                          {lesson.fileSize}
+                        </span>
+                      )}
+                      {lesson.timeLimit && lesson.type === 'quiz' && (
+                        <span className="text-xs text-amber-500 px-2 py-1 rounded-full bg-amber-50">
+                          {lesson.timeLimit} min
+                        </span>
+                      )}
+                      {lesson.locked && (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
