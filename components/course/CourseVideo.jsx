@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactPlayer from 'react-player/youtube';
 import { useInView } from 'react-intersection-observer';
 
@@ -64,7 +64,7 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
         videoRef.current?.removeEventListener('ended', handleVideoEnded);
       };
     }
-  }, [isYoutubeVideo, isPdfFile, handleTimeUpdate, handleLoadedMetadata, handleVideoEnded]);
+  }, [isYoutubeVideo, isPdfFile]); // Removed function dependencies to prevent infinite loops
   
   // Handle mini player mode when scrolling
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
     };
   }, []);
 
-  const handleTimeUpdate = () => {
+  const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
     
     const currentTime = videoRef.current.currentTime;
@@ -119,15 +119,15 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
         localStorage.setItem(`video-completed-${videoUrl}`, 'true');
       }
     }
-  };
+  }, [videoUrl, onProgress]);
   
-  const handleLoadedMetadata = () => {
+  const handleLoadedMetadata = useCallback(() => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration);
-  };
+  }, []);
   
   // Handle YouTube video progress
-  const handleYoutubeProgress = ({ played }) => {
+  const handleYoutubeProgress = useCallback(({ played }) => {
     const progressPercent = played * 100;
     setProgress(progressPercent);
     
@@ -140,13 +140,13 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
     if (played >= 0.8) {
       localStorage.setItem(`video-completed-${videoIdRef.current}`, 'true');
     }
-  };
+  }, [onProgress, videoIdRef]);
   
-  const handleYoutubeDuration = (duration) => {
+  const handleYoutubeDuration = useCallback((duration) => {
     setDuration(duration);
-  };
+  }, []);
   
-  const handleVideoEnded = () => {
+  const handleVideoEnded = useCallback(() => {
     // Mark as completed
     const storageKey = isYoutubeVideo ? 
       `video-completed-${videoIdRef.current}` : 
@@ -158,11 +158,19 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
     if (onVideoComplete) {
       onVideoComplete();
     }
-  };
+  }, [isYoutubeVideo, videoIdRef, videoUrl, onVideoComplete]);
   
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (isYoutubeVideo) {
       setIsPlaying(!isPlaying);
+      // Make sure the YouTube player reference exists
+      if (youtubePlayerRef.current) {
+        if (!isPlaying) {
+          youtubePlayerRef.current.getInternalPlayer().playVideo();
+        } else {
+          youtubePlayerRef.current.getInternalPlayer().pauseVideo();
+        }
+      }
     } else if (!isPdfFile && videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
@@ -171,7 +179,8 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
       }
       setIsPlaying(!isPlaying);
     }
-  };
+  }, [isPlaying, isYoutubeVideo, isPdfFile]);
+
   
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
