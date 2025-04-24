@@ -1,13 +1,4 @@
-// File structure recommendation:
-// pages/courses/[courseId].js - Main course details page
-// components/course/ - Folder for all course-related components
-//   - CourseHeader.jsx
-//   - CourseVideo.jsx
-//   - CourseMaterials.jsx
-//   - CourseTopics.jsx
-//   - CourseComments.jsx
 "use client";
-// pages/courses/[courseId].js
 import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -104,7 +95,7 @@ export default function CourseDetails({ params }) {
     {
       studentName: "Maria Garcia",
       date: "Oct 15, 2023",
-      comment: "The instructor explains complex topics in a way that's easy to understand. The quizzes really help reinforce the material."
+      comment: "The instructor explains complex topics in a way that easy to understand. The quizzes really help reinforce the material."
     },
     {
       studentName: "Raj Patel",
