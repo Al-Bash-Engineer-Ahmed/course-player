@@ -64,7 +64,7 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
         videoRef.current?.removeEventListener('ended', handleVideoEnded);
       };
     }
-  }, [isYoutubeVideo, isPdfFile]);
+  }, [isYoutubeVideo, isPdfFile, handleTimeUpdate, handleLoadedMetadata, handleVideoEnded]);
   
   // Handle mini player mode when scrolling
   useEffect(() => {
@@ -257,31 +257,32 @@ export default function CourseVideo({ videoUrl, onProgress, onVideoComplete, has
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
+  // Mark PDF as viewed after 5 seconds - moved outside conditional rendering
+  useEffect(() => {
+    if (isPdfFile && videoUrl) {
+      const timer = setTimeout(() => {
+        // Mark as completed in localStorage
+        localStorage.setItem(`video-completed-${videoUrl}`, 'true');
+        
+        // Call the completion callback
+        if (onVideoComplete) {
+          onVideoComplete();
+        }
+        
+        // Dispatch lesson completed event
+        const videoId = videoUrl.split('/').pop().replace('.pdf', '');
+        const event = new CustomEvent('lessonCompleted', {
+          detail: { videoId }
+        });
+        window.dispatchEvent(event);
+      }, 5000); // Mark as completed after 5 seconds of viewing
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isPdfFile, videoUrl, onVideoComplete]);
+  
   // Render PDF viewer
   if (isPdfFile) {
-    // Mark PDF as viewed after 5 seconds
-    useEffect(() => {
-      if (isPdfFile && videoUrl) {
-        const timer = setTimeout(() => {
-          // Mark as completed in localStorage
-          localStorage.setItem(`video-completed-${videoUrl}`, 'true');
-          
-          // Call the completion callback
-          if (onVideoComplete) {
-            onVideoComplete();
-          }
-          
-          // Dispatch lesson completed event
-          const videoId = videoUrl.split('/').pop().replace('.pdf', '');
-          const event = new CustomEvent('lessonCompleted', {
-            detail: { videoId }
-          });
-          window.dispatchEvent(event);
-        }, 5000); // Mark as completed after 5 seconds of viewing
-        
-        return () => clearTimeout(timer);
-      }
-    }, [isPdfFile, videoUrl, onVideoComplete]);
     
     return (
       <div className="relative rounded-lg overflow-hidden bg-white border border-gray-200 shadow-sm">

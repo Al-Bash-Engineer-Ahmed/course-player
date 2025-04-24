@@ -18,7 +18,7 @@ export default function VideoCard({ video, courseVideos, videoIndex, hasNext, ha
         updateProgress(100); // Mark as watched if it's completed
       }
     }
-  }, [video.url, isWatched]); // Removed updateProgress from dependencies
+  }, [video.url, isWatched, updateProgress]); // Added updateProgress to dependencies
 
   const handleProgress = (progressData) => {
     // Handle progress updates from video player
