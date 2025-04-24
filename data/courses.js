@@ -26,7 +26,7 @@ export const courses = [
             locked: false,
             duration: 15,
             watched: false,
-            description: "An overview of what you'll learn in this programming course."
+            description: "An overview of what you will learn in this programming course."
           },
           { 
             title: "Setting Up Your Development Environment", 
